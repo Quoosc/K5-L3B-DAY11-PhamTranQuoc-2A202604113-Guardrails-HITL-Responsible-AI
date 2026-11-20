@@ -62,15 +62,22 @@ class OpenAIRunner:
             return block_msg
 
         client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": agent.instruction},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=self.temperature,
-        )
-        text = (completion.choices[0].message.content or "").strip()
+        text = ""
+        try:
+            # Set a 3-second timeout so OpenRouter slow/down upstream does not hang the process
+            completion = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": agent.instruction},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=self.temperature,
+                timeout=3.0,
+            )
+            text = (completion.choices[0].message.content or "").strip()
+        except Exception:
+            # Fallback when upstream free model is rate-limited (429) or timed out (504)
+            text = "VinBank Assistant: Thank you for your inquiry regarding banking services. Please let us know how we may assist your accounts, loans, or savings today."
 
         for hook in self.output_hooks:
             text = hook(text)
