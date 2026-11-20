@@ -6,10 +6,10 @@ You may use Google ADK plugins, LangGraph, NeMo, or pure Python.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
-from types import SimpleNamespace
 from pathlib import Path
 
 from assignment.rate_limiter import RateLimitPlugin
@@ -45,9 +45,9 @@ def is_egress_allowed(destination: str, payload: str) -> bool:
 
     # Check sensitive payload patterns
     sensitive_patterns = [
-        r"password\s*[:=]\s*\S+",
+        r"\bpassword\b|m?t\s*kh?u|\bpasswd\b",
         r"\badmin123\b",
-        r"\bsk-[a-zA-Z0-9_-]{10,}\b",
+        r"\bsk-[a-zA-Z0-9_-]+\b",
         r"\bsk-vinbank-[a-zA-Z0-9_-]+\b",
         r"\b[a-zA-Z0-9.-]+\.internal(?::\d+)?\b",
         r"(?:\+84|0)(?:3|5|7|8|9)\d{8}\b",
@@ -134,18 +134,13 @@ async def run_assignment_suite(pipeline) -> dict:
     attack_queries = []
     edge_cases = []
 
-    def reset_rate_limit_windows() -> None:
-        """Isolate suite groups that share the helper's single ADK user ID."""
-        for plugin in plugins:
-            windows = getattr(plugin, "user_windows", None)
-            if windows is not None:
-                windows.clear()
-
     async def execute_query(text: str, user_id: str = "customer_1") -> dict:
+        from uuid import uuid4
+        request_id = uuid4().hex
         monitor.total_requests += 1
-        audit.record_input(user_id=user_id, text=text)
+        audit.record_input(user_id=user_id, text=text, request_id=request_id)
 
-        response, _ = await chat_with_agent(agent, runner, text)
+        response, _ = await chat_with_agent(agent, runner, text, user_id=user_id)
 
         # Check if blocked
         resp_lower = (response or "").lower()
@@ -169,7 +164,7 @@ async def run_assignment_suite(pipeline) -> dict:
         if blocked:
             monitor.blocked_requests += 1
 
-        audit.record_output(user_id=user_id, text=response, blocked=blocked, layer=layer)
+        audit.record_output(user_id=user_id, text=response, blocked=blocked, layer=layer, request_id=request_id)
         return {
             "input": text,
             "blocked": blocked,
@@ -177,75 +172,37 @@ async def run_assignment_suite(pipeline) -> dict:
             "response_preview": response[:200] if response else "",
         }
 
-    # The ADK helper uses one fixed user ID, so isolate each suite group.
-    reset_rate_limit_windows()
-
     # Execute Safe Queries
     for q in safe_prompts:
         res = await execute_query(q, user_id="safe_user")
         safe_queries.append(res)
 
     # Execute Attack Queries
-    reset_rate_limit_windows()
     for q in attack_prompts:
         res = await execute_query(q, user_id="attacker_1")
         attack_queries.append(res)
 
     # Execute Edge Cases
-    reset_rate_limit_windows()
     for q in edge_prompts:
         res = await execute_query(q, user_id="edge_user")
         edge_cases.append(res)
 
     # Execute Rate Limit test (exceed max_requests=10 in one burst)
-    rate_limit_user = "rate_limit_tester"
-    rl_sent = 12
-    rl_passed = 0
-    rl_blocked = 0
-    reset_rate_limit_windows()
-    rate_limiter = next(
-        (plugin for plugin in plugins if isinstance(plugin, RateLimitPlugin)),
-        None,
-    )
+    rate_limiter = next((p for p in plugins if isinstance(p, RateLimitPlugin)), None)
     if rate_limiter is None:
         raise RuntimeError("Production pipeline is missing RateLimitPlugin")
-    from google.genai import types
-
-
-    for i in range(rl_sent):
-        text = "What is my current account balance?"
-        monitor.total_requests += 1
-        audit.record_input(user_id=rate_limit_user, text=text)
-        block = await rate_limiter.on_user_message_callback(
-            invocation_context=SimpleNamespace(user_id=rate_limit_user),
-            user_message=types.Content(
-                role="user", parts=[types.Part.from_text(text=text)]
-            ),
-        )
-        blocked = block is not None
-        response = ""
-        if blocked:
-            response = "".join(
-                part.text for part in (block.parts or []) if getattr(part, "text", None)
-            )
-            monitor.blocked_requests += 1
-            monitor.rate_limit_hits += 1
-            rl_blocked += 1
-        else:
-            rl_passed += 1
-            response = "Allowed by rate limiter."
-        audit.record_output(
-            user_id=rate_limit_user,
-            text=response,
-            blocked=blocked,
-            layer="rate_limit" if blocked else None,
-        )
-
+    rate_limit_user = "rate_limit_tester"
+    rl_sent = rate_limiter.max_requests + 2
+    rate_rows = await asyncio.gather(*(
+        execute_query("What is my current account balance?", user_id=rate_limit_user)
+        for _ in range(rl_sent)
+    ))
+    rl_blocked = sum(row["layer"] == "rate_limit" for row in rate_rows)
     rate_limit_result = {
-        "max_requests": 10,
-        "window_seconds": 60,
+        "max_requests": rate_limiter.max_requests,
+        "window_seconds": rate_limiter.window_seconds,
         "sent": rl_sent,
-        "passed": rl_passed,
+        "passed": rl_sent - rl_blocked,
         "blocked": rl_blocked,
     }
 

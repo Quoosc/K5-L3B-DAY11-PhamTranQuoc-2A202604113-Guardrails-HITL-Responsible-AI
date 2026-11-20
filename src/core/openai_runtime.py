@@ -8,6 +8,7 @@ Gemini Red Team dùng Google ADK trong agents/*.py — không đi qua file này.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -49,35 +50,32 @@ class OpenAIRunner:
     def _client(self):
         from openai import OpenAI
 
-        return OpenAI(**(self.client_kwargs or {}))
+        return OpenAI(**(self.client_kwargs or {}), max_retries=0)
 
-    async def chat(self, agent: OpenAIAgent, user_message: str) -> str:
+    async def chat(self, agent: OpenAIAgent, user_message: str, *, user_id: str = "student") -> str:
         for hook in self.input_hooks:
             blocked = hook(user_message)
             if blocked:
                 return blocked
 
-        block_msg = await self._run_input_plugins(user_message)
+        block_msg = await self._run_input_plugins(user_message, user_id=user_id)
         if block_msg is not None:
             return block_msg
 
         client = self._client()
-        text = ""
-        try:
-            # Set a 3-second timeout so OpenRouter slow/down upstream does not hang the process
-            completion = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": agent.instruction},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=self.temperature,
-                timeout=3.0,
-            )
-            text = (completion.choices[0].message.content or "").strip()
-        except Exception:
-            # Fallback when upstream free model is rate-limited (429) or timed out (504)
-            text = "VinBank Assistant: Thank you for your inquiry regarding banking services. Please let us know how we may assist your accounts, loans, or savings today."
+        completion = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=self.model,
+            messages=[
+                {"role": "system", "content": agent.instruction},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=self.temperature,
+            timeout=20.0,
+        )
+        text = (completion.choices[0].message.content or "").strip()
+        if not text:
+            raise RuntimeError("Model returned an empty response")
 
         for hook in self.output_hooks:
             text = hook(text)
@@ -85,7 +83,7 @@ class OpenAIRunner:
         text = await self._run_output_plugins(text)
         return text
 
-    async def _run_input_plugins(self, user_message: str) -> str | None:
+    async def _run_input_plugins(self, user_message: str, *, user_id: str = "student") -> str | None:
         if not self.plugins:
             return None
         try:
@@ -97,7 +95,7 @@ class OpenAIRunner:
             role="user",
             parts=[types.Part.from_text(text=user_message)],
         )
-        ctx = _MockInvocationContext()
+        ctx = _MockInvocationContext(user_id=user_id)
         for plugin in self.plugins:
             cb = getattr(plugin, "on_user_message_callback", None)
             if cb is None:

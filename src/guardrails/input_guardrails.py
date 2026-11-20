@@ -11,6 +11,7 @@ Status convention (không dùng True/False mơ hồ):
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Literal
 
 from google.genai import types
@@ -55,9 +56,10 @@ def detect_injection(user_input: str) -> InputStatus:
         return "ALLOW"
 
     # Normalize zero-width and invisible characters
-    cleaned_input = re.sub(r"[\u200b\u200c\u200d\uFEFF\u00a0]", "", user_input)
+    cleaned_input = re.sub(r"[\u200b\u200c\u200d\uFEFF]", "", unicodedata.normalize("NFKC", user_input))
 
     INJECTION_PATTERNS = [
+        r"ignore\s+(?:all\s+)?(?:the\s+)?(?:rules?|instructions?)\b",
         r"ignore\s*(all\s*)?(previous|above|prior)\s*(instructions?|commands?|rules?)",
         r"disregard\s*(all\s*)?(previous|above|prior)\s*(instructions?|commands?|rules?)",
         r"you\s+are\s+now\b",

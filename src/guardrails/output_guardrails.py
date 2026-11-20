@@ -44,8 +44,8 @@ def content_filter(response: str) -> dict:
         "phone_vn": r"(?:\+84|0)(?:3|5|7|8|9)\d{8}\b|\b0\d{9,10}\b",
         "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
         "national_id": r"\b\d{9}\b|\b\d{12}\b",
-        "api_key": r"\bsk-[a-zA-Z0-9_-]{10,}\b|\bsk-vinbank-[a-zA-Z0-9_-]+\b",
-        "password": r"(?:password|mật\s*khẩu|passwd)\s*[:=]\s*\S+",
+        "api_key": r"\bsk-[a-zA-Z0-9_-]+\b",
+        "password": r"(?:password|mật\s*khẩu|passwd)\s*(?:[:=]|\bis\b|\blà\b)\s*[^\s,;]+",
         "admin_secret": r"\badmin123\b",
         "internal_host": r"\b[a-zA-Z0-9.-]+\.internal(?::\d+)?\b",
     }
