@@ -1,5 +1,7 @@
 # Day 11 — Controlled Agent Security (2026)
 
+**Học viên:** Phạm Trấn Quốc · **MSSV:** `2A202604113` · **Lớp:** K5-L3B
+
 > 👤 **Hình thức:** bài tập **cá nhân** (1 người / 1 MSSV).  
 > 🎯 **Mục tiêu:** đóng vai **Blue Team** để học cách xây Guardrails phòng thủ, rồi đóng vai **Red Team** để tấn công agent **Red** hoặc **Red Advance**.  
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).
@@ -23,7 +25,7 @@
 1. Máy có **Python 3.10+** (khuyến nghị 3.11 hoặc 3.12) và Git.
 2. Tài khoản GitHub cá nhân (để fork + đổi tên repo nộp).
 3. API keys:
-   - **Blue (bắt buộc):** [OpenRouter](https://openrouter.ai/keys) — model cố định [`liquid/lfm-3-1.7b:free`](https://openrouter.ai/liquid/lfm-3-1.7b:free)
+   - **Blue:** Bài nộp dùng [Liquid API](https://console.liquid.ai/) theo hướng dẫn đổi endpoint của LabCoach. Cấu hình starter dùng [OpenRouter](https://openrouter.ai/keys).
    - **Red (chọn một provider):** [OpenAI](https://platform.openai.com/api-keys) (`gpt-4o-mini`) **hoặc** [Google AI Studio](https://aistudio.google.com/apikey) (`gemini-3.5-flash`)
 4. Đọc nhanh [`RULES.md`](RULES.md) và [`RUBRIC.md`](RUBRIC.md).
 
@@ -56,7 +58,7 @@ Bonus lab chỉ tính **một** trong hai: leak **Red** (B1, tối đa +5) hoặ
 
 | Agent                     | Provider / model                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------ |
-| **Blue**                  | OpenRouter `liquid/lfm-3-1.7b:free` (khóa cứng)                                         |
+| **Blue**                  | Liquid API `lfm3-1.7b` (bài nộp) hoặc OpenRouter `liquid/lfm-3-1.7b:free` (starter) |
 | **Red** + **Red Advance** | Cùng provider: `gpt-4o-mini` **hoặc** `gemini-3.5-flash` (model mềm — điểm bắt buộc) |
 | Model khó (tuỳ chọn)      | `gpt-5.6-luna` / `gemini-3.8-flash` — **không** phải tên agent                       |
 
@@ -158,7 +160,29 @@ cp .env.example .env
 pip install -r requirements.txt
 ```
 
-Điền `.env`: `OPENROUTER_API_KEY` + `RED_TEAM_PROVIDER=openai|gemini` (và key tương ứng).  
-Rồi mở [`CHECKPOINTS.md`](CHECKPOINTS.md) và làm lần lượt Checkpoint 1 → 5.
+### Cấu hình để chạy lại bài nộp
+
+Điền API key của bạn vào `.env` ở thư mục gốc. Git bỏ qua file này.
+
+```dotenv
+LIQUID_API_KEY=
+RED_TEAM_PROVIDER=gemini
+GOOGLE_API_KEY=
+GOOGLE_GENAI_USE_VERTEXAI=0
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+- **Blue (CP2–CP3):** Khi có `LIQUID_API_KEY`, code gọi `https://api.liquid.ai/openai/v1` với model `lfm3-1.7b`. Nếu muốn dùng cấu hình starter, để trống `LIQUID_API_KEY` và điền `OPENROUTER_API_KEY`.
+- **Red và Red Advance (CP4):** Kết quả đã nộp được tạo với `gemini-3.5-flash`. Cả hai agent dùng cùng cấu hình Gemini ở trên.
+
+Chạy từ thư mục gốc repo:
+
+```text
+python src/main.py --part 2
+python src/main.py --part 3
+python -m pytest tests/smoke tests/public -q
+```
+
+Xem [kết quả Blue](outputs/results.json), [kết quả CP4](outputs/attack_results.json) và [báo cáo tự kiểm](outputs/grade_report.json). Các bước đầy đủ nằm trong [`CHECKPOINTS.md`](CHECKPOINTS.md).
 
 Nộp theo [`SUBMISSION.md`](SUBMISSION.md) · Quy định: [`RULES.md`](RULES.md).
