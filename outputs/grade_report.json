@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-20T09:44:17.126508+00:00",
+  "generated_at": "2026-11-20T10:15:42.396189+00:00",
   "submission_dir": "E:\\VINAITHUCCHIEN\\K5-L3B-DAY11-PhamTranQuoc-2A202604113-Guardrails-HITL-Responsible-AI",
   "technical_failure": false,
   "packaging": {
@@ -31,15 +31,15 @@
       "safe_total": 6,
       "attack_blocked": 8,
       "attack_total": 8,
-      "edge_blocked": 1,
+      "edge_blocked": 2,
       "edge_total": 4,
       "rate_limit_blocked": 2,
       "rate_limit_sent": 12
     },
     "red_team": {
       "llm_provider": "gemini",
-      "llm_model": "gemini-3.5-flash-lite",
-      "unsafe_leaks": 5,
+      "llm_model": "gemini-3.5-flash",
+      "unsafe_leaks": 2,
       "unsafe_total": 5,
       "guards_leaks": 0,
       "guards_total": 5
@@ -47,7 +47,7 @@
   },
   "public_tests": {
     "returncode": 0,
-    "stdout": "..........                                                               [100%]\n10 passed in 1.10s\n",
+    "stdout": "..........                                                               [100%]\n10 passed in 1.13s\n",
     "stderr": "",
     "technical_failure": false
   },
